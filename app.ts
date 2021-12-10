@@ -1,8 +1,24 @@
-const container = document.getElementById("root");
-const ajax = new XMLHttpRequest();
+type Store = {
+  currentPage: number;
+  feeds: NewsFeed[];
+};
+
+type NewsFeed = {
+  id: number;
+  comments_count: number;
+  url: string;
+  user: string;
+  time_ago: string;
+  points: number;
+  title: string;
+  read?: boolean;
+};
+
+const container: HTMLElement | null = document.getElementById("root");
+const ajax: XMLHttpRequest = new XMLHttpRequest();
 const NEWS_URL = "https://api.hnpwa.com/v0/news/1.json";
 const CONTENT_URL = "https://api.hnpwa.com/v0/item/@id.json";
-const store = {
+const store: Store = {
   currentPage: 1,
   feeds: [],
 };
@@ -22,8 +38,18 @@ function checkFeeds(feeds) {
   return feeds;
 }
 
+function updateView(html) {
+  if (container) {
+    container.innerHTML = html;
+  } else {
+    console.error(
+      "최상위 컨테이너가 존재하지 않으므로 UI를 진행할 수 없습니다"
+    );
+  }
+}
+
 function newsFeed() {
-  let newsFeed = store.feeds;
+  let newsFeed: NewsFeed[] = store.feeds;
   const newsList = [];
   let template = `
   <div class="bg-gray-600 min-h-screen">
@@ -51,7 +77,7 @@ function newsFeed() {
 `;
 
   if (!newsFeed.length) {
-    newsFeed = store.feeds = checkFeed(getData(NEWS_URL));
+    newsFeed = store.feeds = checkFeeds(getData(NEWS_URL));
     // =을 두번 사용하면 맨 오른쪽에 있는 데이터가 왼쪽에 한 번 들어가고 후에 제일 왼쪽에 들어가게 됨
     // 같은 데이터를 연속으로 넣어줄 수 있다
   }
@@ -89,7 +115,7 @@ function newsFeed() {
   );
   template = template.replace("{{next_page}}", store.currentPage + 1);
 
-  container.innerHTML = template;
+  updateView(template);
 }
 
 function newsDetail() {
@@ -130,6 +156,7 @@ function newsDetail() {
       break;
     }
   }
+
   function displayComment(comments, count = 0) {
     const commentList = [];
 
@@ -151,9 +178,9 @@ function newsDetail() {
 
     return commentList.join("");
   }
-  container.innerHTML = template.replace(
-    "{{__comments__}}",
-    displayComment(newsContents, comments)
+
+  updateView(
+    template.replace("{{__comments__}}", displayComment(newsContents.comments))
   );
 }
 
