@@ -44,7 +44,7 @@ function getData<AjaxResponse>(url: string): AjaxResponse {
   return JSON.parse(ajax.response);
 }
 
-function checkFeeds(feeds) {
+function checkFeeds(feeds: NewsFeed[]): NewsFeed[] {
   for (let i = 0; i < feeds.length; i++) {
     feeds[i].read = false;
   }
@@ -52,7 +52,8 @@ function checkFeeds(feeds) {
   return feeds;
 }
 
-function updateView(html) {
+// return 값이 없을때는 void 타입을 사용
+function updateView(html: string): void {
   if (container) {
     container.innerHTML = html;
   } else {
@@ -62,7 +63,7 @@ function updateView(html) {
   }
 }
 
-function newsFeed() {
+function newsFeed(): void {
   let newsFeed: NewsFeed[] = store.feeds;
   const newsList = [];
   let template = `
@@ -125,14 +126,14 @@ function newsFeed() {
   template = template.replace("{{news_feed}}", newsList.join(""));
   template = template.replace(
     "{{prev_page}}",
-    store.currentPage > 1 ? store.currentPage - 1 : 1
+    String(store.currentPage > 1 ? store.currentPage - 1 : 1)
   );
-  template = template.replace("{{next_page}}", store.currentPage + 1);
+  template = template.replace("{{next_page}}", String(store.currentPage + 1));
 
   updateView(template);
 }
 
-function newsDetail() {
+function newsDetail(): void {
   const id = location.hash.substr(7);
   const newsContents = getData<NewsDetail>(CONTENT_URL.replace("@id", id));
   let template = `
@@ -171,34 +172,35 @@ function newsDetail() {
     }
   }
 
-  function displayComment(comments, count = 0) {
-    const commentList = [];
-
-    for (let i = 0; i < comments.length; i++) {
-      commentList.push(`
-      <div style="padding-left: ${count * 40}px;" class="mt-4">
-      <div class="text-gray-400">
-        <i class="fa fa-sort-up mr-2"></i>
-        <strong>${comments[i].user}</strong> ${comments[i].time_ago}
-      </div>
-      <p class="text-gray-700">${comments[i].content}</p>
-    </div>
-      `);
-
-      if (comments[i].comments.length) {
-        commentList.push(displayComment(comments[i].comments, count++));
-      }
-    }
-
-    return commentList.join("");
-  }
-
   updateView(
     template.replace("{{__comments__}}", displayComment(newsContents.comments))
   );
 }
 
-function router() {
+function displayComment(comments: NewsComment[]): string {
+  const commentList = [];
+
+  for (let i = 0; i < comments.length; i++) {
+    const comment: NewsComment = comments[i];
+    commentList.push(`
+    <div style="padding-left: ${comment.level * 40}px;" class="mt-4">
+    <div class="text-gray-400">
+      <i class="fa fa-sort-up mr-2"></i>
+      <strong>${comment.user}</strong> ${comment.time_ago}
+    </div>
+    <p class="text-gray-700">${comment.content}</p>
+  </div>
+    `);
+
+    if (comment.comments.length) {
+      commentList.push(displayComment(comment.comments));
+    }
+  }
+
+  return commentList.join("");
+}
+
+function router(): void {
   const routePath = location.hash;
 
   if (routePath === "") {
