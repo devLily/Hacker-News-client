@@ -3,33 +3,27 @@ type Store = {
   feeds: NewsFeed[];
 };
 
-type NewsFeed = {
+type News = {
   id: number;
-  comments_count: number;
+  time_ago: string;
+  title: string;
   url: string;
   user: string;
-  time_ago: string;
+  content: string;
+};
+
+type NewsFeed = News & {
+  comments_count: number;
   points: number;
-  title: string;
   read?: boolean;
 };
 
-type NewsDefail = {
-  id: number;
-  time_ago: string;
-  title: string;
-  url: string;
-  user: string;
-  content: string;
-  comments: [];
+type NewsDetail = News & {
+  comments: NewsComment[];
 };
 
-type NewsComment = {
-  id: number;
-  user: string;
-  time_ago: string;
-  content: string;
-  comments: [];
+type NewsComment = News & {
+  comments: NewsComment[];
   level: number;
 };
 
@@ -42,7 +36,8 @@ const store: Store = {
   feeds: [],
 };
 
-function getData(url: string) {
+// ajax응답값이라는 유형의 타입으로 제네릭을 표현
+function getData<AjaxResponse>(url: string): AjaxResponse {
   ajax.open("GET", url, false);
   ajax.send();
 
@@ -96,7 +91,7 @@ function newsFeed() {
 `;
 
   if (!newsFeed.length) {
-    newsFeed = store.feeds = checkFeeds(getData(NEWS_URL));
+    newsFeed = store.feeds = checkFeeds(getData<NewsFeed[]>(NEWS_URL));
     // =을 두번 사용하면 맨 오른쪽에 있는 데이터가 왼쪽에 한 번 들어가고 후에 제일 왼쪽에 들어가게 됨
     // 같은 데이터를 연속으로 넣어줄 수 있다
   }
@@ -139,7 +134,7 @@ function newsFeed() {
 
 function newsDetail() {
   const id = location.hash.substr(7);
-  const newsContents = getData(CONTENT_URL.replace("@id", id));
+  const newsContents = getData<NewsDetail>(CONTENT_URL.replace("@id", id));
   let template = `
   <div class="bg-gray-600 min-h-screen pb-8">
       <div class="bg-white text-xl">
