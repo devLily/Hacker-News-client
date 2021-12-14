@@ -1,31 +1,31 @@
-type Store = {
+interface Store {
   currentPage: number;
   feeds: NewsFeed[];
-};
+}
 
-type News = {
+interface News {
   id: number;
   time_ago: string;
   title: string;
   url: string;
   user: string;
   content: string;
-};
+}
 
-type NewsFeed = News & {
+interface NewsFeed extends News {
   comments_count: number;
   points: number;
   read?: boolean;
-};
+}
 
-type NewsDetail = News & {
+interface NewsDetail extends News {
   comments: NewsComment[];
-};
+}
 
-type NewsComment = News & {
+interface NewsComment extends News {
   comments: NewsComment[];
   level: number;
-};
+}
 
 const container: HTMLElement | null = document.getElementById("root");
 const ajax: XMLHttpRequest = new XMLHttpRequest();
@@ -36,12 +36,36 @@ const store: Store = {
   feeds: [],
 };
 
-// ajax응답값이라는 유형의 타입으로 제네릭을 표현
-function getData<AjaxResponse>(url: string): AjaxResponse {
-  ajax.open("GET", url, false);
-  ajax.send();
+//class는 최초 초기화되는 과정이 필요하고,그 초기화 과정을 처리하는 함수가 생성자 constructor
+class Api {
+  url: string;
+  ajax: XMLHttpRequest;
 
-  return JSON.parse(ajax.response);
+  constructor(url: string) {
+    this.url = url;
+    this.ajax = new XMLHttpRequest();
+  }
+  // 기존 getData와 달리 this.url 에 저장해 두었으므로 url 매개변수는 받을 필요가 없다
+  protected getRequest<AjaxResponse>(): AjaxResponse {
+    this.ajax.open("GET", this.url, false);
+    this.ajax.send();
+
+    return JSON.parse(this.ajax.response);
+  }
+}
+
+// 상위 class에 있는 메서드 혹은 특성들은 인스턴스 객체를 통해 접근할 수 있음
+class NewsFeedApi extends Api {
+  getData(): NewsFeed[] {
+    return this.getRequest<NewsFeed[]>();
+    // getRequest는 제네릭을 명시해 주어야 함
+  }
+}
+
+class NewsDetailApi extends Api {
+  getData(): NewsDetail {
+    return this.getRequest<NewsDetail>();
+  }
 }
 
 function checkFeeds(feeds: NewsFeed[]): NewsFeed[] {
@@ -64,6 +88,7 @@ function updateView(html: string): void {
 }
 
 function newsFeed(): void {
+  const api = new NewsFeedApi(NEWS_URL);
   let newsFeed: NewsFeed[] = store.feeds;
   const newsList = [];
   let template = `
@@ -92,9 +117,7 @@ function newsFeed(): void {
 `;
 
   if (!newsFeed.length) {
-    newsFeed = store.feeds = checkFeeds(getData<NewsFeed[]>(NEWS_URL));
-    // =을 두번 사용하면 맨 오른쪽에 있는 데이터가 왼쪽에 한 번 들어가고 후에 제일 왼쪽에 들어가게 됨
-    // 같은 데이터를 연속으로 넣어줄 수 있다
+    newsFeed = store.feeds = checkFeeds(api.getData());
   }
 
   for (let i = (store.currentPage - 1) * 10; i < store.currentPage * 10; i++) {
@@ -135,7 +158,8 @@ function newsFeed(): void {
 
 function newsDetail(): void {
   const id = location.hash.substr(7);
-  const newsContents = getData<NewsDetail>(CONTENT_URL.replace("@id", id));
+  const api = new NewsDetailApi(CONTENT_URL.replace("@id", id));
+  const newsContents = api.getData();
   let template = `
   <div class="bg-gray-600 min-h-screen pb-8">
       <div class="bg-white text-xl">
