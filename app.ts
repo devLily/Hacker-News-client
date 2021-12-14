@@ -36,37 +36,49 @@ const store: Store = {
   feeds: [],
 };
 
-//class는 최초 초기화되는 과정이 필요하고,그 초기화 과정을 처리하는 함수가 생성자 constructor
+function applyApiMixins(targetClass: any, baseClasses: any[]): void {
+  baseClasses.forEach((baseClass) => {
+    Object.getOwnPropertyNames(baseClass.prototype).forEach((name) => {
+      const descriptor = Object.getOwnPropertyDescriptor(
+        baseClass.prototype,
+        name
+      );
+
+      if (descriptor) {
+        Object.defineProperty(targetClass.prototype, name, descriptor);
+      }
+    });
+  });
+}
 class Api {
-  url: string;
-  ajax: XMLHttpRequest;
+  getRequest<AjaxResponse>(url: string): AjaxResponse {
+    const ajax = new XMLHttpRequest();
+    ajax.open("GET", url, false);
+    ajax.send();
 
-  constructor(url: string) {
-    this.url = url;
-    this.ajax = new XMLHttpRequest();
-  }
-  // 기존 getData와 달리 this.url 에 저장해 두었으므로 url 매개변수는 받을 필요가 없다
-  protected getRequest<AjaxResponse>(): AjaxResponse {
-    this.ajax.open("GET", this.url, false);
-    this.ajax.send();
-
-    return JSON.parse(this.ajax.response);
+    return JSON.parse(ajax.response);
   }
 }
 
 // 상위 class에 있는 메서드 혹은 특성들은 인스턴스 객체를 통해 접근할 수 있음
-class NewsFeedApi extends Api {
+class NewsFeedApi {
   getData(): NewsFeed[] {
-    return this.getRequest<NewsFeed[]>();
+    return this.getRequest<NewsFeed[]>(NEWS_URL);
     // getRequest는 제네릭을 명시해 주어야 함
   }
 }
 
-class NewsDetailApi extends Api {
-  getData(): NewsDetail {
-    return this.getRequest<NewsDetail>();
+class NewsDetailApi {
+  getData(id: string): NewsDetail {
+    return this.getRequest<NewsDetail>(CONTENT_URL.replace("@id", id));
   }
 }
+
+interface NewsFeedApi extends Api {}
+interface NewsDetailApi extends Api {}
+
+applyApiMixins(NewsFeedApi, [Api]);
+applyApiMixins(NewsDetailApi, [Api]);
 
 function checkFeeds(feeds: NewsFeed[]): NewsFeed[] {
   for (let i = 0; i < feeds.length; i++) {
@@ -76,7 +88,6 @@ function checkFeeds(feeds: NewsFeed[]): NewsFeed[] {
   return feeds;
 }
 
-// return 값이 없을때는 void 타입을 사용
 function updateView(html: string): void {
   if (container) {
     container.innerHTML = html;
@@ -88,9 +99,9 @@ function updateView(html: string): void {
 }
 
 function newsFeed(): void {
-  const api = new NewsFeedApi(NEWS_URL);
+  const api = new NewsFeedApi();
   let newsFeed: NewsFeed[] = store.feeds;
-  const newsList = [];
+  const newsList: string[] = [];
   let template = `
   <div class="bg-gray-600 min-h-screen">
     <div class="bg-white text-xl">
@@ -158,8 +169,8 @@ function newsFeed(): void {
 
 function newsDetail(): void {
   const id = location.hash.substr(7);
-  const api = new NewsDetailApi(CONTENT_URL.replace("@id", id));
-  const newsContents = api.getData();
+  const api = new NewsDetailApi();
+  const newsDetail: NewsDetail = api.getData(id);
   let template = `
   <div class="bg-gray-600 min-h-screen pb-8">
       <div class="bg-white text-xl">
@@ -178,9 +189,9 @@ function newsDetail(): void {
       </div>
 
       <div class="h-full border rounded-xl bg-white m-6 p-4 ">
-        <h2>${newsContents.title}</h2>
+        <h2>${newsDetail.title}</h2>
         <div class="text-gray-400 h-20">
-          ${newsContents.content}
+          ${newsDetail.content}
         </div>
 
         {{__comments__}}
@@ -197,7 +208,7 @@ function newsDetail(): void {
   }
 
   updateView(
-    template.replace("{{__comments__}}", displayComment(newsContents.comments))
+    template.replace("{{__comments__}}", displayComment(newsDetail.comments))
   );
 }
 
