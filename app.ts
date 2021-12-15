@@ -27,6 +27,11 @@ interface NewsComment extends News {
   level: number;
 }
 
+interface RouteItem {
+  path: string;
+  page: View;
+}
+
 const container: HTMLElement | null = document.getElementById("root");
 const ajax: XMLHttpRequest = new XMLHttpRequest();
 const NEWS_URL = "https://api.hnpwa.com/v0/news/1.json";
@@ -78,10 +83,11 @@ interface NewsDetailApi extends Api {}
 applyApiMixins(NewsFeedApi, [Api]);
 applyApiMixins(NewsDetailApi, [Api]);
 
-class View {
-  template: string;
-  container: HTMLElement;
-  htmlElementList: string[];
+abstract class View {
+  private template: string;
+  private renderTemplate: string;
+  private container: HTMLElement;
+  private htmlElementList: string[];
 
   constructor(containerId: string, template: string) {
     const containerElement = document.getElementById(containerId);
@@ -93,28 +99,78 @@ class View {
 
     this.container = containerElement;
     this.template = template;
+    this.renderTemplate = template;
     this.htmlElementList = [];
   }
 
-  updateView(html: string): void {
-    this.container.innerHTML = html;
+  protected updateView(): void {
+    this.container.innerHTML = this.renderTemplate;
+    this.renderTemplate = this.template;
   }
 
-  addHtmlElement(htmlString: string): void {
+  protected addHtmlElement(htmlString: string): void {
     this.htmlElementList.push(htmlString);
   }
 
-  getHtmlElement(): string {
-    return this.htmlElementList.join("");
+  protected getHtmlElement(): string {
+    const snpaShot = this.htmlElementList.join("");
+    this.initializedElementList();
+    return snpaShot;
   }
 
-  setTemplate(key: string, value: string): void {
-    this.template = this.template.replace(`{{__${key}__}}`, value);
+  protected setTemplate(key: string, value: string): void {
+    this.renderTemplate = this.template.replace(`{{__${key}__}}`, value);
+  }
+
+  private initializedElementList(): void {
+    this.htmlElementList = [];
+  }
+
+  abstract render(): void;
+  // 추상 메서드
+}
+
+class Router {
+  routeTable: RouteItem[];
+  defaultRoute: RouteItem | null;
+
+  constructor() {
+    window.addEventListener("hashchange", this.route.bind(this));
+    // 브라우저의 이벤트 시스템이 this.route를 호출
+
+    this.routeTable = [];
+    this.defaultRoute = null;
+  }
+
+  setDefaultPage(page: View): void {
+    this.defaultRoute = { path: "", page };
+  }
+
+  addRoutePath(path: string, page: View): void {
+    this.routeTable.push({
+      path: path,
+      page: page,
+    });
+  }
+
+  route() {
+    const routePath = location.hash;
+
+    if (!routePath && this.defaultRoute) {
+      this.defaultRoute.page.render();
+    }
+
+    for (const routeItem of this.routeTable) {
+      if (routePath.indexOf(routeItem.path) >= 0) {
+        routeItem.page.render();
+        break;
+      }
+    }
   }
 }
 class NewsFeedView extends View {
-  api: NewsFeedApi;
-  feeds: NewsFeed[];
+  private api: NewsFeedApi;
+  private feeds: NewsFeed[];
 
   constructor(containerId: string) {
     let template = `
@@ -153,6 +209,8 @@ class NewsFeedView extends View {
   }
 
   render(): void {
+    store.currentPage = Number(location.hash.substr(7) || 1);
+
     for (
       let i = (store.currentPage - 1) * 10;
       i < store.currentPage * 10;
@@ -190,17 +248,17 @@ class NewsFeedView extends View {
     );
     this.setTemplate("next_page", String(store.currentPage + 1));
 
-    updateView(template);
+    this.updateView();
   }
 
-  checkFeeds(): void {
+  private checkFeeds(): void {
     for (let i = 0; i < this.feeds.length; i++) {
       this.feeds[i].read = false;
     }
   }
 }
 
-class newsDetailView extends View {
+class NewsDetailView extends View {
   constructor(containerId: string) {
     let template = `
     <div class="bg-gray-600 min-h-screen pb-8">
@@ -211,7 +269,7 @@ class newsDetailView extends View {
                 <h1 class="font-extrabold">Hacker News</h1>
               </div>
               <div class="items-center justify-end">
-                <a href="#/page/${store.currentPage}" class="text-gray-500">
+                <a href="#/page/{{__currentPage__}}" class="text-gray-500">
                   <i class="fa fa-times"></i>
                 </a>
               </div>
@@ -220,9 +278,9 @@ class newsDetailView extends View {
         </div>
 
         <div class="h-full border rounded-xl bg-white m-6 p-4 ">
-          <h2>${newsDetail.title}</h2>
+          <h2>{{__title__}}</h2>
           <div class="text-gray-400 h-20">
-            ${newsDetail.content}
+          {{__content__}}
           </div>
 
           {{__comments__}}
@@ -247,6 +305,10 @@ class newsDetailView extends View {
     }
 
     this.setTemplate("comments", this.displayComment(newsDetail.comments));
+    this.setTemplate("currentPage", String(store.currentPage));
+    this.setTemplate("title", newsDetail.title);
+    this.setTemplate("content", newsDetail.content);
+
     this.updateView();
   }
 
@@ -275,19 +337,12 @@ class newsDetailView extends View {
 
 function newsDetail(): void {}
 
-function router(): void {
-  const routePath = location.hash;
+const router: Router = new Router();
+const newsFeedView = new NewsFeedView("root");
+const newsDetailview = new NewsDetailView("root");
 
-  if (routePath === "") {
-    newsFeed();
-  } else if (routePath.indexOf("#/page/") >= 0) {
-    store.currentPage = Number(routePath.substr(7));
-    newsFeed();
-  } else {
-    newsDetail();
-  }
-}
+router.setDefaultPage(newsFeedView);
+router.addRoutePath("/page/", newsFeedView);
+router.addRoutePath("/show/", newsDetailview);
 
-window.addEventListener("hashchange", router, false);
-
-router();
+router.route();
