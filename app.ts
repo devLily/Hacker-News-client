@@ -60,11 +60,9 @@ class Api {
   }
 }
 
-// 상위 class에 있는 메서드 혹은 특성들은 인스턴스 객체를 통해 접근할 수 있음
 class NewsFeedApi {
   getData(): NewsFeed[] {
     return this.getRequest<NewsFeed[]>(NEWS_URL);
-    // getRequest는 제네릭을 명시해 주어야 함
   }
 }
 
@@ -80,29 +78,46 @@ interface NewsDetailApi extends Api {}
 applyApiMixins(NewsFeedApi, [Api]);
 applyApiMixins(NewsDetailApi, [Api]);
 
-function checkFeeds(feeds: NewsFeed[]): NewsFeed[] {
-  for (let i = 0; i < feeds.length; i++) {
-    feeds[i].read = false;
+class View {
+  template: string;
+  container: HTMLElement;
+  htmlElementList: string[];
+
+  constructor(containerId: string, template: string) {
+    const containerElement = document.getElementById(containerId);
+    // getElementById는 null을 반환할 수 있기 때문에 에러처리를 위해 변수로 선언해서 따로 빼줌
+
+    if (!containerElement) {
+      throw "최상위 컨테이너가 존재하지 않아 UI작업을 진행할 수 없습니다.";
+    }
+
+    this.container = containerElement;
+    this.template = template;
+    this.htmlElementList = [];
   }
 
-  return feeds;
-}
+  updateView(html: string): void {
+    this.container.innerHTML = html;
+  }
 
-function updateView(html: string): void {
-  if (container) {
-    container.innerHTML = html;
-  } else {
-    console.error(
-      "최상위 컨테이너가 존재하지 않으므로 UI를 진행할 수 없습니다"
-    );
+  addHtmlElement(htmlString: string): void {
+    this.htmlElementList.push(htmlString);
+  }
+
+  getHtmlElement(): string {
+    return this.htmlElementList.join("");
+  }
+
+  setTemplate(key: string, value: string): void {
+    this.template = this.template.replace(`{{__${key}__}}`, value);
   }
 }
+class NewsFeedView extends View {
+  api: NewsFeedApi;
+  feeds: NewsFeed[];
 
-function newsFeed(): void {
-  const api = new NewsFeedApi();
-  let newsFeed: NewsFeed[] = store.feeds;
-  const newsList: string[] = [];
-  let template = `
+  constructor(containerId: string) {
+    let template = `
   <div class="bg-gray-600 min-h-screen">
     <div class="bg-white text-xl">
       <div class="mx-auto px-4">
@@ -126,114 +141,139 @@ function newsFeed(): void {
     </div>
   </div>
 `;
+    super(containerId, template);
 
-  if (!newsFeed.length) {
-    newsFeed = store.feeds = checkFeeds(api.getData());
+    this.api = new NewsFeedApi();
+    this.feeds = store.feeds;
+
+    if (!this.feeds.length) {
+      this.feeds = store.feeds = this.api.getData();
+      this.checkFeeds();
+    }
   }
 
-  for (let i = (store.currentPage - 1) * 10; i < store.currentPage * 10; i++) {
-    newsList.push(`
+  render(): void {
+    for (
+      let i = (store.currentPage - 1) * 10;
+      i < store.currentPage * 10;
+      i++
+    ) {
+      const { id, title, comments_count, user, points, time_ago, read } =
+        this.feeds[i];
+      this.addHtmlElement(`
     <div class="p-6 ${
-      newsFeed[i].read ? "bg-green-500" : "bg-white"
+      read ? "bg-green-500" : "bg-white"
     } mt-6 rounded-lg shadow-md transition-colors duration-500 hover:bg-green-100">
       <div class="flex">
         <div class="flex-auto">
-          <a href="#/show/${newsFeed[i].id}">${newsFeed[i].title}</a>
+          <a href="#/show/${id}">${title}</a>
         </div>
         <div class="text-center text-sm">
-          <div class="w-10 text-white bg-green-300 rounded-lg px-0 py-2">${
-            newsFeed[i].comments_count
-          }</div>
+          <div class="w-10 text-white bg-green-300 rounded-lg px-0 py-2">${comments_count}</div>
         </div>
       </div>
       <div class="flex mt-3">
         <div class="grid grid-cols-3 text-sm text-gray-500">
-          <div><i class="fas fa-user mr-1"></i>${newsFeed[i].user}</div>
-          <div><i class="fas fa-heart mr-1"></i>${newsFeed[i].points}</div>
-          <div><i class="far fa-clock mr-1"></i>${newsFeed[i].time_ago}</div>
+          <div><i class="fas fa-user mr-1"></i>${user}</div>
+          <div><i class="fas fa-heart mr-1"></i>${points}</div>
+          <div><i class="far fa-clock mr-1"></i>${time_ago}</div>
         </div>
       </div>
     </div>
   `);
+    }
+
+    this.setTemplate("news_feed", this.getHtmlElement());
+    this.setTemplate(
+      "prev_page",
+      String(store.currentPage > 1 ? store.currentPage - 1 : 1)
+    );
+    this.setTemplate("next_page", String(store.currentPage + 1));
+
+    updateView(template);
   }
 
-  template = template.replace("{{news_feed}}", newsList.join(""));
-  template = template.replace(
-    "{{prev_page}}",
-    String(store.currentPage > 1 ? store.currentPage - 1 : 1)
-  );
-  template = template.replace("{{next_page}}", String(store.currentPage + 1));
-
-  updateView(template);
+  checkFeeds(): void {
+    for (let i = 0; i < this.feeds.length; i++) {
+      this.feeds[i].read = false;
+    }
+  }
 }
 
-function newsDetail(): void {
-  const id = location.hash.substr(7);
-  const api = new NewsDetailApi();
-  const newsDetail: NewsDetail = api.getData(id);
-  let template = `
-  <div class="bg-gray-600 min-h-screen pb-8">
-      <div class="bg-white text-xl">
-        <div class="mx-auto px-4">
-          <div class="flex justify-between items-center py-6">
-            <div class="flex justify-start">
-              <h1 class="font-extrabold">Hacker News</h1>
-            </div>
-            <div class="items-center justify-end">
-              <a href="#/page/${store.currentPage}" class="text-gray-500">
-                <i class="fa fa-times"></i>
-              </a>
+class newsDetailView extends View {
+  constructor(containerId: string) {
+    let template = `
+    <div class="bg-gray-600 min-h-screen pb-8">
+        <div class="bg-white text-xl">
+          <div class="mx-auto px-4">
+            <div class="flex justify-between items-center py-6">
+              <div class="flex justify-start">
+                <h1 class="font-extrabold">Hacker News</h1>
+              </div>
+              <div class="items-center justify-end">
+                <a href="#/page/${store.currentPage}" class="text-gray-500">
+                  <i class="fa fa-times"></i>
+                </a>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="h-full border rounded-xl bg-white m-6 p-4 ">
-        <h2>${newsDetail.title}</h2>
-        <div class="text-gray-400 h-20">
-          ${newsDetail.content}
+        <div class="h-full border rounded-xl bg-white m-6 p-4 ">
+          <h2>${newsDetail.title}</h2>
+          <div class="text-gray-400 h-20">
+            ${newsDetail.content}
+          </div>
+
+          {{__comments__}}
+
         </div>
-
-        {{__comments__}}
-
       </div>
-    </div>
-  `;
+    `;
 
-  for (let i = 0; i < store.feeds.length; i++) {
-    if (store.feeds[i].id === Number(id)) {
-      store.feeds[i].read = true;
-      break;
-    }
+    super(containerId, template);
   }
 
-  updateView(
-    template.replace("{{__comments__}}", displayComment(newsDetail.comments))
-  );
-}
+  render() {
+    const id = location.hash.substr(7);
+    const api = new NewsDetailApi();
+    const newsDetail: NewsDetail = api.getData(id);
 
-function displayComment(comments: NewsComment[]): string {
-  const commentList = [];
-
-  for (let i = 0; i < comments.length; i++) {
-    const comment: NewsComment = comments[i];
-    commentList.push(`
-    <div style="padding-left: ${comment.level * 40}px;" class="mt-4">
-    <div class="text-gray-400">
-      <i class="fa fa-sort-up mr-2"></i>
-      <strong>${comment.user}</strong> ${comment.time_ago}
-    </div>
-    <p class="text-gray-700">${comment.content}</p>
-  </div>
-    `);
-
-    if (comment.comments.length) {
-      commentList.push(displayComment(comment.comments));
+    for (let i = 0; i < store.feeds.length; i++) {
+      if (store.feeds[i].id === Number(id)) {
+        store.feeds[i].read = true;
+        break;
+      }
     }
+
+    this.setTemplate("comments", this.displayComment(newsDetail.comments));
+    this.updateView();
   }
 
-  return commentList.join("");
+  displayComment(comments: NewsComment[]): string {
+    for (let i = 0; i < comments.length; i++) {
+      const comment: NewsComment = comments[i];
+
+      this.addHtmlElement(`
+      <div style="padding-left: ${comment.level * 40}px;" class="mt-4">
+      <div class="text-gray-400">
+        <i class="fa fa-sort-up mr-2"></i>
+        <strong>${comment.user}</strong> ${comment.time_ago}
+      </div>
+      <p class="text-gray-700">${comment.content}</p>
+    </div>
+      `);
+
+      if (comment.comments.length) {
+        this.addHtmlElement(this.displayComment(comment.comments));
+      }
+    }
+
+    return this.getHtmlElement();
+  }
 }
+
+function newsDetail(): void {}
 
 function router(): void {
   const routePath = location.hash;
