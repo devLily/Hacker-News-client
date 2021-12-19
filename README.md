@@ -14,6 +14,7 @@ make hacker news client by javascript and migrate to typescript
 - javascript로 구현한 프로젝트를 Typescript로 변수부터 함수까지 차례로 마이그레이션하는 과정에서 타입 표기방식별로 코드를 작성해보고,
   그 과정에서 필요한 여러 TypeScript 문법 등을 적용하여 계속해서 다양한 방법으로 여러 가지 코드를 작성한다.
   (과정은 commit log를 통해 확인 가능)
+- app.ts에서 관리하는 소스코드를 분리하여 코드의 구조를 개선하고 유지보수를 용이하게 한다.
 
 ### UI
 

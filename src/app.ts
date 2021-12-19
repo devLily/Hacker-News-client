@@ -4,27 +4,27 @@ interface Store {
 }
 
 interface News {
-  id: number;
-  time_ago: string;
-  title: string;
-  url: string;
-  user: string;
-  content: string;
+  readonly id: number;
+  readonly time_ago: string;
+  readonly title: string;
+  readonly url: string;
+  readonly user: string;
+  readonly content: string;
 }
 
 interface NewsFeed extends News {
-  comments_count: number;
-  points: number;
+  readonly comments_count: number;
+  readonly points: number;
   read?: boolean;
 }
 
 interface NewsDetail extends News {
-  comments: NewsComment[];
+  readonly comments: NewsComment[];
 }
 
 interface NewsComment extends News {
-  comments: NewsComment[];
-  level: number;
+  readonly comments: NewsComment[];
+  readonly level: number;
 }
 
 interface RouteItem {
@@ -55,6 +55,7 @@ function applyApiMixins(targetClass: any, baseClasses: any[]): void {
     });
   });
 }
+
 class Api {
   getRequest<AjaxResponse>(url: string): AjaxResponse {
     const ajax = new XMLHttpRequest();
